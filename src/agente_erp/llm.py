@@ -11,6 +11,7 @@ Escolha do provedor por variável de ambiente:
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -132,7 +133,32 @@ class CompativelOpenAI:
             PedidoFerramenta(c["id"], c["function"]["name"], _argumentos(c["function"]["arguments"]))
             for c in msg.get("tool_calls") or []
         ]
-        return Turno("assistant", texto=msg.get("content") or "", pedidos=pedidos)
+        texto = msg.get("content") or ""
+        if not pedidos:
+            pedidos = pedidos_no_texto(texto)
+            if pedidos:
+                texto = ""
+        return Turno("assistant", texto=texto, pedidos=pedidos)
+
+
+TOOL_CALL = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
+
+
+def pedidos_no_texto(texto: str) -> list[PedidoFerramenta]:
+    """O Qwen às vezes escreve o pedido de ferramenta como texto (<tool_call>{...}</tool_call>) e o
+    servidor não o reconhece. Sem isso, o pedido virava a resposta final."""
+    pedidos = []
+    for i, bloco in enumerate(TOOL_CALL.findall(texto)):
+        try:
+            chamada = json.loads(bloco)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(chamada, dict) and "name" in chamada:
+            argumentos = chamada.get("arguments") or {}
+            if isinstance(argumentos, str):
+                argumentos = _argumentos(argumentos)
+            pedidos.append(PedidoFerramenta(f"texto-{i}", chamada["name"], argumentos))
+    return pedidos
 
 
 def _argumentos(texto: str | None) -> dict:

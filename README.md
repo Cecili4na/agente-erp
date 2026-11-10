@@ -39,6 +39,10 @@ no resultado de alguma consulta, ou na própria pergunta. "R$ 1.486.422,70" na r
 a resposta volta com a lista dos números sem lastro e ele tem uma chance de refazer com SQL. Se
 falhar de novo, a resposta é marcada como não confiável.
 
+**Na ausência** (adicionada depois da primeira avaliação): "não há vendas em 2025" também é uma
+afirmação. Se o agente conclui que não há dados ou que não dá para responder, ele recebe uma
+instrução para olhar linhas reais das tabelas e conferir os filtros antes de repetir a conclusão.
+
 ## Avaliação
 
 22 perguntas com a resposta certa calculada em **Python, sem SQL** (`gabarito.py`). Se o gabarito
@@ -54,7 +58,40 @@ O agente roda em dois modos:
 Métricas: acerto, fração de respostas confiáveis, **acerto entre as confiáveis** (o quanto a
 conferência separa resposta certa de errada), consultas por pergunta e tokens.
 
-> Resultados por modelo: em andamento.
+### Primeira rodada: Qwen2.5-7B-Instruct (AWQ, 4 bits)
+
+| Modo | Acerto | Respostas confiáveis | Acerto entre as confiáveis | Consultas por pergunta |
+|---|---|---|---|---|
+| cego | 0 de 22 | 91% | 0% | 0,7 |
+| com notas | 3 de 22 | 68% | 20% | 0,8 |
+
+O 7B não serve como agente neste banco, e os erros têm três padrões claros
+(`resultados/v1/`, com o SQL de cada pergunta):
+
+1. **Desiste sem olhar.** Menos de uma consulta por pergunta. Chuta tabelas que não existem
+   (`VENDAS`, `ORC`, `PRODUTO`), recebe erro e responde "não é possível". Em cinco perguntas
+   afirmou que o banco "só tem dados até 2019" ou que "2025 ainda não chegou", sem nenhuma
+   consulta que sustentasse isso.
+2. **Cai na armadilha da data.** Mesmo com a nota "DT_MOV é texto AAAAMMDD", usou
+   `strftime('%Y', DT_MOV)`, que devolve vazio nesse formato, e concluiu "nenhuma venda aos
+   sábados" ou "desconto de R$ 0,00".
+3. **Erra o número ao escrever.** A consulta certa devolveu 264295.96 e a resposta saiu
+   "R$ 264,295,96"; outra saiu "R$ 389,67" para 389.666,06. A conferência de números marcou essas
+   respostas como não confiáveis, que era o trabalho dela.
+
+**O que isso diz sobre os guardrails.** A conferência de números funcionou: barrou contas de
+cabeça, um resultado de SQL inventado dentro da resposta e números mal escritos. Mas o "acerto
+entre as confiáveis" de 20% mostra o ponto cego dela: uma resposta que desiste ("não há dados")
+não tem número nenhum e passa direto. Daí veio a conferência de ausência.
+
+Também apareceu uma falha de integração: o Qwen às vezes escreve o pedido de ferramenta como
+texto (`<tool_call>...`) e o servidor não o reconhece, então o pedido virava a resposta final.
+O adaptador agora lê esse formato.
+
+### Segunda rodada: 7B com a conferência de ausência, e 14B
+
+> Em andamento: o mesmo código com o Qwen2.5-7B e com o Qwen2.5-14B, para separar o que é
+> limite do sistema do que é limite do modelo.
 
 ## Rodando
 

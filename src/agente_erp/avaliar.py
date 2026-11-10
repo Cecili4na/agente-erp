@@ -5,7 +5,8 @@ Por modo, mede:
 - acerto entre as confiáveis: o quanto dá para confiar numa resposta que passou na conferência;
 - respostas confiáveis: passaram na conferência de números;
 - consultas por pergunta e tokens: custo;
-- consultas recusadas pelos guardrails.
+- consultas recusadas pelos guardrails;
+- verificações de ausência: quantas vezes o agente disse "não há dados" e foi mandado conferir.
 
 A pergunta que interessa: quanto a documentação de negócio (`NOTAS`) muda o acerto, e se a
 conferência de números separa as respostas certas das erradas.
@@ -40,7 +41,7 @@ def avaliar_modo(modo: str) -> dict:
         linhas.append({
             "id": p.id, "pergunta": p.texto, "gabarito": p.resposta, "armadilha": p.armadilha,
             "resposta": e.resposta, "certo": certo, "confiavel": e.confiavel, "passos": e.passos,
-            "consultas": e.consultas, "recusadas": e.recusadas,
+            "consultas": e.consultas, "recusadas": e.recusadas, "verificou_ausencia": e.verificou_ausencia,
             "sql": [c.entrada.get("sql") for c in e.chamadas if c.ferramenta == "consultar"],
         })
         print(f"{p.id} {'certo' if certo else 'ERRO '} {'' if e.confiavel else '(não confiável)'} {e.resposta[:80]}",
@@ -56,6 +57,7 @@ def avaliar_modo(modo: str) -> dict:
         "acerto_entre_confiaveis": round(sum(x["certo"] for x in confiaveis) / max(len(confiaveis), 1), 3),
         "consultas_por_pergunta": round(sum(x["consultas"] for x in linhas) / n, 1),
         "consultas_recusadas": sum(x["recusadas"] for x in linhas),
+        "verificacoes_de_ausencia": sum(x["verificou_ausencia"] for x in linhas),
         "tokens_entrada": modelo.uso.entrada,
         "tokens_saida": modelo.uso.saida,
     }

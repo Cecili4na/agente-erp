@@ -1,9 +1,12 @@
 """O laço do agente: pensar, chamar ferramenta, ler o resultado, repetir, responder.
 
-O laço tem três freios:
+O laço tem quatro freios:
 - um número máximo de passos (o agente não fica consultando para sempre);
 - a conferência de números na resposta final: se algum número não tem lastro nas consultas,
   o agente recebe a lista e tem uma chance de corrigir;
+- a conferência de ausência: "não há dados" também é uma afirmação e precisa ser verificada.
+  Na primeira avaliação, o 7B desistia assim na maioria das perguntas, muitas vezes depois de
+  um filtro errado que devolvia vazio. Ele recebe uma chance de olhar as linhas reais antes;
 - se ainda assim falhar, a resposta é marcada como não confiável e não é entregue como certa.
 
 Há dois modos, para medir quanto o contexto de negócio ajuda:
@@ -12,7 +15,9 @@ Há dois modos, para medir quanto o contexto de negócio ajuda:
   documentação do sistema no primeiro dia.
 """
 
+import re
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 
 from agente_erp.conferencia import sem_lastro
@@ -20,8 +25,25 @@ from agente_erp.ferramentas import DEFINICOES, Ferramentas
 from agente_erp.llm import Modelo, ResultadoFerramenta, Turno
 
 MAX_PASSOS = 12
+MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro",
+         "outubro", "novembro", "dezembro"]
+HOJE = date.today()
 
-SISTEMA = """Você é um analista de dados que responde perguntas de negócio de uma loja de autopeças
+# respostas do tipo "não há vendas em 2025", "não é possível calcular", "nenhuma venda"
+NEGATIVA = re.compile(
+    r"\bn[ãa]o (h[áa]|existem?|consta|foi poss[íi]vel|[ée] poss[íi]vel|possui|cont[ée]m)\b|\bnenhum[a]?\b",
+    re.IGNORECASE,
+)
+VERIFICAR_AUSENCIA = (
+    "Você concluiu que não há dados ou que não dá para responder. Antes de afirmar isso, confira: "
+    "veja algumas linhas reais das tabelas envolvidas (SELECT * ... LIMIT 3) e verifique se os filtros "
+    "batem com o formato real das colunas. Uma consulta vazia costuma ser filtro errado, não falta de "
+    "dados. Depois responda de novo."
+)
+
+SISTEMA = f"""Hoje é {HOJE.day} de {MESES[HOJE.month - 1]} de {HOJE.year}.
+
+Você é um analista de dados que responde perguntas de negócio de uma loja de autopeças
 consultando o banco SQLite do sistema de gestão dela, um ERP antigo com nomes de tabela em siglas.
 
 Como trabalhar:
@@ -54,6 +76,7 @@ class Execucao:
     recusadas: int
     sem_lastro: list[float] = field(default_factory=list)
     chamadas: list = field(default_factory=list)
+    verificou_ausencia: bool = False
 
 
 def executar(pergunta: str, modelo: Modelo, banco: Path, modo: str = "com_notas") -> Execucao:
@@ -61,6 +84,7 @@ def executar(pergunta: str, modelo: Modelo, banco: Path, modo: str = "com_notas"
     sistema = SISTEMA + (NOTAS if modo == "com_notas" else "")
     historico = [Turno("user", texto=pergunta)]
     correcao_usada = False
+    ausencia_verificada = False
     problemas: list[float] = []
     resposta = ""
 
@@ -83,6 +107,10 @@ def executar(pergunta: str, modelo: Modelo, banco: Path, modo: str = "com_notas"
                 "Calcule esses valores com SQL e responda de novo."
             )))
             continue
+        if not problemas and not ausencia_verificada and NEGATIVA.search(resposta):
+            ausencia_verificada = True
+            historico.append(Turno("user", texto=VERIFICAR_AUSENCIA))
+            continue
         break
     else:
         resposta = resposta or "Não cheguei a uma resposta dentro do limite de passos."
@@ -97,4 +125,5 @@ def executar(pergunta: str, modelo: Modelo, banco: Path, modo: str = "com_notas"
         recusadas=sum(c.recusada for c in ferramentas.chamadas),
         sem_lastro=problemas,
         chamadas=ferramentas.chamadas,
+        verificou_ausencia=ausencia_verificada,
     )
