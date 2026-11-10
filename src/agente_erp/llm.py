@@ -129,10 +129,19 @@ class CompativelOpenAI:
         self.uso.saida += corpo.get("usage", {}).get("completion_tokens", 0)
         msg = corpo["choices"][0]["message"]
         pedidos = [
-            PedidoFerramenta(c["id"], c["function"]["name"], json.loads(c["function"]["arguments"] or "{}"))
+            PedidoFerramenta(c["id"], c["function"]["name"], _argumentos(c["function"]["arguments"]))
             for c in msg.get("tool_calls") or []
         ]
         return Turno("assistant", texto=msg.get("content") or "", pedidos=pedidos)
+
+
+def _argumentos(texto: str | None) -> dict:
+    """Modelos pequenos às vezes geram JSON quebrado; a ferramenta devolve o erro e o agente tenta de novo."""
+    try:
+        entrada = json.loads(texto or "{}")
+    except json.JSONDecodeError:
+        return {"argumentos_invalidos": texto}
+    return entrada if isinstance(entrada, dict) else {"argumentos_invalidos": texto}
 
 
 def do_ambiente() -> Modelo:

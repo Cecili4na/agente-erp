@@ -17,7 +17,7 @@ import json
 import sys
 from pathlib import Path
 
-from agente_erp.agente import executar
+from agente_erp.agente import Execucao, executar
 from agente_erp.erp import BANCO, gerar
 from agente_erp.gabarito import conferir, perguntas
 from agente_erp.llm import do_ambiente
@@ -32,7 +32,10 @@ def avaliar_modo(modo: str) -> dict:
     modelo = do_ambiente()
     linhas = []
     for p in perguntas(BANCO):
-        e = executar(p.texto, modelo, BANCO, modo)
+        try:
+            e = executar(p.texto, modelo, BANCO, modo)
+        except Exception as erro:  # noqa: BLE001
+            e = Execucao(p.texto, f"ERRO: {erro}", confiavel=False, passos=0, consultas=0, recusadas=0)
         certo = conferir(p, e.resposta)
         linhas.append({
             "id": p.id, "pergunta": p.texto, "gabarito": p.resposta, "armadilha": p.armadilha,
