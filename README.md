@@ -92,8 +92,23 @@ O adaptador agora lê esse formato.
 
 ### Segunda rodada: 7B com a conferência de ausência, e 14B
 
-> Em andamento: o mesmo código com o Qwen2.5-7B e com o Qwen2.5-14B, para separar o que é
-> limite do sistema do que é limite do modelo.
+O mesmo código com o Qwen2.5-7B e com o Qwen2.5-14B (ambos AWQ, 4 bits, servidos por vLLM), para
+separar o que é limite do sistema do que é limite do modelo (`resultados/`).
+
+| Modelo | Modo | Acerto | Respostas confiáveis | Acerto entre as confiáveis | Consultas por pergunta |
+|---|---|---|---|---|---|
+| 7B | cego | 0 de 22 | 77% | 0% | 2,0 |
+| 7B | com notas | 7 de 22 | 82% | 39% | 2,1 |
+| 14B | cego | 1 de 22 | 77% | 0% | 3,8 |
+| 14B | com notas | 9 de 22 | 64% | 64% | 1,5 |
+
+1. **O contexto pesa mais que o modelo.** Sem as notas, os dois ficam perto de zero; com meia
+   página de documentação, o 7B vai de 0 para 7 acertos e o 14B de 1 para 9. A lição para
+   produção é investir em documentar o sistema antes de trocar de modelo.
+2. **A conferência de ausência fez o agente olhar o banco.** O 7B passou de 0,8 para 2,1
+   consultas por pergunta, e o acerto com notas foi de 3 para 7.
+3. **A conferência separa melhor com um modelo maior.** No 14B com notas, 9 das 14 respostas
+   marcadas como confiáveis estão certas (64%), contra 39% no 7B.
 
 ## Rodando
 

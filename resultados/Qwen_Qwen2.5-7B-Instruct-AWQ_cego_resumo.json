@@ -1,0 +1,12 @@
+{
+  "modelo": "Qwen/Qwen2.5-7B-Instruct-AWQ",
+  "modo": "cego",
+  "acerto": 0.0,
+  "respostas_confiaveis": 0.773,
+  "acerto_entre_confiaveis": 0.0,
+  "consultas_por_pergunta": 2.0,
+  "consultas_recusadas": 17,
+  "verificacoes_de_ausencia": 16,
+  "tokens_entrada": 138595,
+  "tokens_saida": 6966
+}
