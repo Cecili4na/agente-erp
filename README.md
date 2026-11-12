@@ -1,5 +1,7 @@
 # agente-erp
 
+[![testes](https://github.com/Cecili4na/agente-erp/actions/workflows/testes.yml/badge.svg)](https://github.com/Cecili4na/agente-erp/actions/workflows/testes.yml)
+
 Um agente que responde perguntas de negócio ("quanto a loja faturou em março?") consultando o
 banco de um ERP antigo, com nomes de tabela em siglas e as armadilhas que sistemas reais têm.
 O agente escreve o próprio SQL. As proteções ficam no código, não no prompt.
@@ -118,3 +120,7 @@ modelo roteirizado e o gabarito.
   que a avaliação mede o acerto contra o gabarito, e não só a conferência.
 - SQLite com dados sintéticos. Num banco de produção, a ferramenta deveria usar um usuário só de
   leitura no próprio servidor, além das proteções daqui.
+
+## Licença
+
+MIT. O banco é sintético, gerado por `erp.py`.
